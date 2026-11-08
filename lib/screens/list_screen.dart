@@ -171,6 +171,23 @@ class _ItemCard extends StatelessWidget {
                 ),
               ],
             ),
+            const SizedBox(height: 8),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.end,
+              children: [
+                IconButton(
+                  icon: const Icon(Icons.edit),
+                  tooltip: 'Editar',
+                  onPressed: () {},
+                ),
+                IconButton(
+                  icon: const Icon(Icons.delete),
+                  tooltip: 'Excluir',
+                  color: Theme.of(context).colorScheme.error,
+                  onPressed: () {},
+                ),
+              ],
+            ),
           ],
         ),
       ),
