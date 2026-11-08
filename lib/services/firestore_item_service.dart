@@ -18,35 +18,51 @@ class FirestoreItemService implements ItemService {
       _firestore.collection(_collectionName);
 
   @override
-  Future<List<ItemModel>> fetchItems() async {
-    try {
+  Future<List<ItemModel>> fetchItems() {
+    return _guard(() async {
       final snapshot = await _items
           .orderBy('createdAt', descending: true)
-          .get()
-          .timeout(_timeout);
+          .get();
 
       return snapshot.docs.map(_toModel).toList(growable: false);
-    } on TimeoutException {
-      throw const ItemServiceException(
-        'A conexão demorou demais. Verifique sua internet e tente novamente.',
-      );
-    } on FirebaseException catch (error) {
-      throw ItemServiceException(_messageFor(error));
-    }
+    });
   }
 
   @override
-  Future<void> createItem(ItemDraft draft) async {
+  Future<void> createItem(ItemDraft draft) {
+    return _guard(() async {
+      await _items.add({
+        'name': draft.name.trim(),
+        'description': draft.description.trim(),
+        'location': draft.location.trim(),
+        'status': draft.status,
+        'createdAt': FieldValue.serverTimestamp(),
+      });
+    });
+  }
+
+  @override
+  Future<void> updateItem(String id, ItemDraft draft) {
+    return _guard(() async {
+      await _items.doc(id).update({
+        'name': draft.name.trim(),
+        'description': draft.description.trim(),
+        'location': draft.location.trim(),
+        'status': draft.status,
+      });
+    });
+  }
+
+  @override
+  Future<void> deleteItem(String id) {
+    return _guard(() async {
+      await _items.doc(id).delete();
+    });
+  }
+
+  Future<T> _guard<T>(Future<T> Function() action) async {
     try {
-      await _items
-          .add({
-            'name': draft.name.trim(),
-            'description': draft.description.trim(),
-            'location': draft.location.trim(),
-            'status': draft.status,
-            'createdAt': FieldValue.serverTimestamp(),
-          })
-          .timeout(_timeout);
+      return await action().timeout(_timeout);
     } on TimeoutException {
       throw const ItemServiceException(
         'A conexão demorou demais. Verifique sua internet e tente novamente.',
@@ -76,6 +92,8 @@ class FirestoreItemService implements ItemService {
       case 'permission-denied':
       case 'unauthenticated':
         return 'O serviço recusou a operação. Tente novamente mais tarde.';
+      case 'not-found':
+        return 'O registro não existe mais. Atualize a lista e tente novamente.';
       case 'failed-precondition':
         return 'O banco de dados ainda não está pronto. Tente novamente em instantes.';
       default:

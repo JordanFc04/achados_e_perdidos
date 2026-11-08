@@ -4,9 +4,10 @@ import '../models/item_model.dart';
 import '../state/item_store.dart';
 
 class FormScreen extends StatefulWidget {
-  const FormScreen({super.key, required this.store});
+  const FormScreen({super.key, required this.store, this.item});
 
   final ItemStore store;
+  final ItemModel? item;
 
   @override
   State<FormScreen> createState() => _FormScreenState();
@@ -18,6 +19,23 @@ class _FormScreenState extends State<FormScreen> {
   final _descriptionController = TextEditingController();
   final _locationController = TextEditingController();
   String _status = ItemModel.lostStatus;
+
+  bool get _isEditing => widget.item != null;
+
+  @override
+  void initState() {
+    super.initState();
+
+    final item = widget.item;
+    if (item == null) {
+      return;
+    }
+
+    _nameController.text = item.name;
+    _descriptionController.text = item.description;
+    _locationController.text = item.location;
+    _status = item.status;
+  }
 
   @override
   void dispose() {
@@ -36,14 +54,16 @@ class _FormScreenState extends State<FormScreen> {
       return;
     }
 
-    final success = await widget.store.create(
-      ItemDraft(
-        name: _nameController.text.trim(),
-        description: _descriptionController.text.trim(),
-        location: _locationController.text.trim(),
-        status: _status,
-      ),
+    final draft = ItemDraft(
+      name: _nameController.text.trim(),
+      description: _descriptionController.text.trim(),
+      location: _locationController.text.trim(),
+      status: _status,
     );
+
+    final success = _isEditing
+        ? await widget.store.update(widget.item!.id, draft)
+        : await widget.store.create(draft);
 
     if (!mounted) {
       return;
@@ -58,7 +78,9 @@ class _FormScreenState extends State<FormScreen> {
       SnackBar(
         content: Text(
           widget.store.errorMessage ??
-              'Não foi possível salvar. Tente novamente.',
+              (_isEditing
+                  ? 'Não foi possível salvar as alterações. Tente novamente.'
+                  : 'Não foi possível salvar. Tente novamente.'),
         ),
       ),
     );
@@ -73,7 +95,7 @@ class _FormScreenState extends State<FormScreen> {
 
         return Scaffold(
           appBar: AppBar(
-            title: const Text('Cadastrar Objeto'),
+            title: Text(_isEditing ? 'Editar Objeto' : 'Cadastrar Objeto'),
             centerTitle: true,
           ),
           body: Center(
@@ -182,7 +204,7 @@ class _FormScreenState extends State<FormScreen> {
                                       .onPrimary,
                                 ),
                               )
-                            : const Text('Salvar'),
+                            : Text(_isEditing ? 'Salvar alterações' : 'Salvar'),
                       ),
                     ],
                   ),

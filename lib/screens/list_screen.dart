@@ -20,6 +20,59 @@ class _ListScreenState extends State<ListScreen> {
     widget.store.load();
   }
 
+  void _openForm([ItemModel? item]) {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => FormScreen(store: widget.store, item: item),
+      ),
+    );
+  }
+
+  Future<void> _confirmDelete(ItemModel item) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Excluir objeto?'),
+        content: Text(
+          'Tem certeza que deseja excluir "${item.name}"? '
+          'Essa ação não pode ser desfeita.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext, false),
+            child: const Text('Cancelar'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(dialogContext, true),
+            child: const Text('Excluir'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed != true || !mounted) {
+      return;
+    }
+
+    final success = await widget.store.delete(item.id);
+
+    if (!mounted) {
+      return;
+    }
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          success
+              ? 'Objeto excluído com sucesso.'
+              : widget.store.errorMessage ??
+                    'Não foi possível excluir o objeto. Tente novamente.',
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return ListenableBuilder(
@@ -64,14 +117,24 @@ class _ListScreenState extends State<ListScreen> {
                               message: store.errorMessage!,
                               onRetry: store.load,
                             ),
-                          ...items.map((item) => _ItemCard(item: item)),
+                          ...items.map(
+                            (item) => _ItemCard(
+                              item: item,
+                              onEdit: store.isSaving || store.isDeleting
+                                  ? null
+                                  : () => _openForm(item),
+                              onDelete: store.isSaving || store.isDeleting
+                                  ? null
+                                  : () => _confirmDelete(item),
+                            ),
+                          ),
                         ],
                       ],
                     ),
                   ),
                   if (store.isLoading && items.isEmpty)
                     const Center(child: CircularProgressIndicator()),
-                  if (store.isLoading && items.isNotEmpty)
+                  if ((store.isLoading || store.isDeleting) && items.isNotEmpty)
                     const Positioned(
                       top: 0,
                       left: 0,
@@ -84,14 +147,7 @@ class _ListScreenState extends State<ListScreen> {
           ),
           floatingActionButton: FloatingActionButton(
             tooltip: 'Novo objeto',
-            onPressed: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (context) => FormScreen(store: widget.store),
-                ),
-              );
-            },
+            onPressed: () => _openForm(),
             child: const Icon(Icons.add),
           ),
         );
@@ -101,9 +157,11 @@ class _ListScreenState extends State<ListScreen> {
 }
 
 class _ItemCard extends StatelessWidget {
-  const _ItemCard({required this.item});
+  const _ItemCard({required this.item, this.onEdit, this.onDelete});
 
   final ItemModel item;
+  final VoidCallback? onEdit;
+  final VoidCallback? onDelete;
 
   @override
   Widget build(BuildContext context) {
@@ -178,13 +236,13 @@ class _ItemCard extends StatelessWidget {
                 IconButton(
                   icon: const Icon(Icons.edit),
                   tooltip: 'Editar',
-                  onPressed: () {},
+                  onPressed: onEdit,
                 ),
                 IconButton(
                   icon: const Icon(Icons.delete),
                   tooltip: 'Excluir',
                   color: Theme.of(context).colorScheme.error,
-                  onPressed: () {},
+                  onPressed: onDelete,
                 ),
               ],
             ),
