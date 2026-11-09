@@ -4,8 +4,6 @@ Aplicativo móvel de achados e perdidos desenvolvido em **Flutter** e **Dart**, 
 
 O projeto tem como objetivo facilitar a divulgação e a localização de objetos perdidos ou encontrados no campus universitário.
 
-> **Status do projeto:** a versão disponibilizada ainda está na estrutura inicial gerada pelo Flutter. As funcionalidades específicas do aplicativo e a integração com armazenamento em nuvem ainda precisam ser implementadas.
-
 ## Equipe
 
 - Felipe Martins dos Santos Silva
@@ -17,18 +15,17 @@ O projeto tem como objetivo facilitar a divulgação e a localização de objeto
 
 Permitir que membros da comunidade acadêmica publiquem informações sobre objetos perdidos ou encontrados e consultem os registros, contribuindo para que esses objetos sejam recuperados.
 
-## Funcionalidades previstas
+## Funcionalidades implementadas
 
-De acordo com os requisitos do trabalho, o aplicativo deverá oferecer:
-
-- **Listagem de objetos:** exibir nome, descrição, local e situação (perdido ou encontrado), priorizando os registros mais recentes.
-- **Cadastro de objetos:** formulário para informar nome, descrição, local e situação.
-- **Validação:** verificar os campos obrigatórios e os limites de caracteres antes do envio.
-- **Atualização da listagem:** permitir recarregar os registros armazenados na nuvem.
-- **Operações assíncronas:** apresentar indicadores de carregamento, impedir envios duplicados e informar falhas de comunicação.
-- **Armazenamento remoto:** manter os registros disponíveis mesmo após o encerramento do aplicativo e compartilhá-los entre diferentes instalações.
-
-**Observação:** os itens acima descrevem os requisitos planejados. Eles não devem ser considerados funcionalidades já implementadas nesta versão.
+- **Listagem de objetos:** exibe nome, descrição, local, situação e data de criação, com os registros mais recentes primeiro.
+- **Cadastro de objetos:** formulário com nome, descrição, local e situação.
+- **Validação:** verifica campos obrigatórios e os limites de caracteres antes do envio.
+- **Edição:** permite alterar os dados de um registro existente.
+- **Exclusão:** remove um registro após confirmação do usuário.
+- **Atualização da listagem:** permite recarregar os registros por botão ou gesto de puxar para atualizar.
+- **Estados de interface:** apresenta indicadores de carregamento, estado vazio e mensagens de erro.
+- **Controle de envio:** impede envios duplicados enquanto uma operação está em andamento.
+- **Persistência remota:** mantém os registros no Firebase Firestore, compartilhados entre diferentes instalações.
 
 ## Tecnologias
 
@@ -37,34 +34,148 @@ De acordo com os requisitos do trabalho, o aplicativo deverá oferecer:
 | Flutter | Desenvolvimento da interface e do aplicativo móvel |
 | Dart | Linguagem de programação |
 | Material Design 3 | Componentes e identidade visual da interface |
+| Firebase Core | Inicialização e configuração do Firebase |
+| Cloud Firestore | Banco de dados remoto para persistência dos registros |
 
-### Armazenamento em nuvem
+## Estrutura do projeto
 
-**Serviço utilizado:** a definir.
+```text
+lib/
+  main.dart
+  firebase_options.dart
+  models/
+    item_model.dart
+  screens/
+    list_screen.dart
+    form_screen.dart
+  services/
+    item_service.dart
+    firestore_item_service.dart
+  state/
+    item_store.dart
+test/
+  item_model_test.dart
+  item_store_test.dart
+android/app/google-services.json
+firebase.json
+firestore.rules
+pubspec.yaml
+```
 
-O projeto deverá utilizar um serviço de armazenamento remoto com plano gratuito, capaz de persistir os registros e permitir sua recuperação por operações assíncronas.
+## Modelo de dados do Firestore
 
-Quando o serviço for definido e integrado, atualize esta seção com:
+Os registros são armazenados na coleção `items`.
 
-- Nome do serviço e link para sua documentação.
-- Identificador do projeto ou banco de dados, quando aplicável.
-- URL ou endpoint necessário para a conexão.
-- Chaves e demais parâmetros de configuração necessários.
-- Instruções para configurar a integração no ambiente de desenvolvimento.
+| Campo | Tipo | Regra |
+|---|---|---|
+| `name` | string | Obrigatório, entre 1 e 60 caracteres |
+| `description` | string | Obrigatório, entre 1 e 200 caracteres |
+| `location` | string | Obrigatório |
+| `status` | string | `Perdido` ou `Encontrado` |
+| `createdAt` | timestamp | Gerado pelo servidor no cadastro |
 
-Não publique credenciais privadas ou chaves secretas no repositório.
+A listagem é ordenada por `createdAt` em ordem decrescente.
 
-## Pré-requisitos
+## Configuração do Firebase
 
-Antes de executar o projeto, instale:
+O projeto utiliza o Firebase no projeto `lost-and-found1-b14e7`, com os seguintes arquivos de configuração:
+
+- `lib/firebase_options.dart`: opções do Firebase por plataforma;
+- `android/app/google-services.json`: configuração do app Android;
+- `firebase.json`: configuração dos serviços Firebase;
+- `firestore.rules`: regras de segurança do Firestore.
+
+As chaves presentes nesses arquivos são configurações públicas de cliente. A proteção dos dados é feita pelas regras do Firestore.
+
+Para publicar as regras:
+
+```bash
+firebase login
+firebase deploy --only firestore:rules --project lost-and-found1-b14e7
+```
+
+## Como executar
+
+### Pré-requisitos
 
 - [Flutter SDK](https://docs.flutter.dev/get-started/install)
-- [Dart SDK](https://dart.dev/get-dart) (incluído na instalação do Flutter)
+- Dart SDK, incluído na instalação do Flutter
 - [Git](https://git-scm.com/downloads)
-- Android Studio ou Visual Studio Code, com as extensões do Flutter e Dart.
-- Um emulador Android ou dispositivo compatível para executar o aplicativo.
+- Android Studio ou Visual Studio Code, com as extensões do Flutter e Dart
+- Um emulador Android ou dispositivo compatível
+- Google Chrome, para executar a versão web
+- Firebase CLI, apenas para publicar as regras do Firestore
 
-Para verificar a instalação do Flutter, execute:
+Verifique a instalação do Flutter:
 
 ```bash
 flutter doctor
+```
+
+Instale as dependências:
+
+```bash
+flutter pub get
+```
+
+Execute no Chrome:
+
+```bash
+flutter run -d chrome
+```
+
+Ou em um dispositivo/emulador:
+
+```bash
+flutter run
+```
+
+Para gerar builds:
+
+```bash
+flutter build web --release
+flutter build apk
+```
+
+## Testes e análise
+
+```bash
+flutter analyze
+flutter test
+```
+
+O projeto possui testes unitários para o modelo de dados e para o estado da aplicação. Atualmente são 11 testes, todos passando.
+
+## Regras de segurança
+
+O projeto não utiliza autenticação. As regras atuais permitem:
+
+- leitura pública dos registros;
+- criação de registros com os campos válidos;
+- edição de registros, sem alterar o `createdAt` original;
+- exclusão pública de registros.
+
+As regras validam os campos obrigatórios, os limites de caracteres e os valores permitidos para a situação. A edição e a exclusão são abertas porque o trabalho não exige autenticação.
+
+Para uso em produção, seria necessário adicionar autenticação e restringir as operações de edição e exclusão a usuários autorizados.
+
+## Limitações
+
+- Não há autenticação de usuários.
+- Não há upload de imagens.
+- Não há busca, filtros ou paginação.
+- Não há perfis ou níveis de permissão.
+- A edição e a exclusão estão abertas a qualquer pessoa com acesso ao aplicativo.
+- Não há moderação dos registros cadastrados.
+
+## Requisitos da avaliação
+
+Os requisitos principais da 2ª avaliação são atendidos:
+
+- listagem dos registros;
+- cadastro com validação;
+- atualização da listagem;
+- operações assíncronas com carregamento, bloqueio de envio duplicado e tratamento de erros;
+- armazenamento remoto no Firebase Firestore.
+
+Além dos requisitos, o projeto também implementa edição e exclusão de registros.
