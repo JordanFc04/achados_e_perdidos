@@ -1,208 +1,347 @@
 import 'package:flutter/material.dart';
 
 import '../models/item_model.dart';
+import '../state/item_store.dart';
 import 'form_screen.dart';
 
 class ListScreen extends StatefulWidget {
-  const ListScreen({super.key});
+  const ListScreen({super.key, required this.store});
+
+  final ItemStore store;
 
   @override
   State<ListScreen> createState() => _ListScreenState();
 }
 
 class _ListScreenState extends State<ListScreen> {
-  final List<ItemModel> items = [];
-  bool isLoading = false;
-  String? errorMessage;
-
   @override
   void initState() {
     super.initState();
-    loadItems();
+    widget.store.load();
   }
 
-  Future<void> loadItems() async {
-    setState(() {
-      isLoading = true;
-      errorMessage = null;
-    });
+  void _openForm([ItemModel? item]) {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => FormScreen(store: widget.store, item: item),
+      ),
+    );
+  }
 
-    try {
-      await Future.delayed(const Duration(seconds: 2));
-    } catch (e) {
-      errorMessage = 'Não foi possível carregar os objetos. Verifique sua conexão e tente novamente.';
-    } finally {
-      if (mounted) {
-        setState(() => isLoading = false);
-      }
+  Future<void> _confirmDelete(ItemModel item) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Excluir objeto?'),
+        content: Text(
+          'Tem certeza que deseja excluir "${item.name}"? '
+          'Essa ação não pode ser desfeita.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext, false),
+            child: const Text('Cancelar'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(dialogContext, true),
+            child: const Text('Excluir'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed != true || !mounted) {
+      return;
     }
+
+    final success = await widget.store.delete(item.id);
+
+    if (!mounted) {
+      return;
+    }
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          success
+              ? 'Objeto excluído com sucesso.'
+              : widget.store.errorMessage ??
+                    'Não foi possível excluir o objeto. Tente novamente.',
+        ),
+      ),
+    );
   }
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('Achados e Perdidos'),
-        centerTitle: true,
-        actions: [
-          IconButton(
-            tooltip: 'Atualizar',
-            icon: const Icon(Icons.refresh),
-            onPressed: loadItems,
-          ),
-        ],
-      ),
-      body: Center(
-        child: ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: 600),
-          child: Stack(
-            children: [
-              RefreshIndicator(
-                onRefresh: loadItems,
-                child: ListView(
-                  physics: const AlwaysScrollableScrollPhysics(),
-                  padding: const EdgeInsets.only(bottom: 88),
-                  children: [
-                    if (errorMessage != null)
-                      SizedBox(
-                        height: MediaQuery.of(context).size.height * 0.6,
-                        child: Center(
-                          child: Padding(
-                            padding: const EdgeInsets.all(24),
-                            child: Column(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                Icon(
-                                  Icons.error_outline,
-                                  size: 64,
-                                  color: Theme.of(context).colorScheme.error,
-                                ),
-                                const SizedBox(height: 16),
-                                Text(
-                                  errorMessage!,
-                                  textAlign: TextAlign.center,
-                                ),
-                                const SizedBox(height: 16),
-                                FilledButton(
-                                  onPressed: loadItems,
-                                  child: const Text('Tentar novamente'),
-                                ),
-                              ],
-                            ),
-                          ),
-                        ),
-                      )
-                    else if (items.isEmpty && !isLoading)
-                      SizedBox(
-                        height: MediaQuery.of(context).size.height * 0.6,
-                        child: Center(
-                          child: Column(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            children: [
-                              Icon(
-                                Icons.inbox,
-                                size: 64,
-                                color: Theme.of(context).colorScheme.outline,
-                              ),
-                              const SizedBox(height: 16),
-                              const Text('Nenhum objeto cadastrado ainda'),
-                            ],
-                          ),
-                        ),
-                      )
-                    else
-                      ...items.map((item) {
-                        final isLost = item.status == 'Perdido';
+    return ListenableBuilder(
+      listenable: widget.store,
+      builder: (context, _) {
+        final store = widget.store;
+        final items = store.items;
 
-                        final statusColor = isLost
-                            ? Theme.of(context).colorScheme.errorContainer
-                            : Theme.of(context).colorScheme.tertiaryContainer;
-                        final onStatusColor = isLost
-                            ? Theme.of(context).colorScheme.onErrorContainer
-                            : Theme.of(context).colorScheme.onTertiaryContainer;
-                        final statusIcon = isLost
-                            ? Icons.search_off
-                            : Icons.check_circle_outline;
-
-                        return Card(
-                          margin: const EdgeInsets.symmetric(
-                            horizontal: 16,
-                            vertical: 8,
-                          ),
-                          child: Padding(
-                            padding: const EdgeInsets.all(12),
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Row(
-                                  children: [
-                                    Expanded(
-                                      child: Text(
-                                        item.name,
-                                        style: Theme.of(context)
-                                            .textTheme
-                                            .titleMedium,
-                                        maxLines: 2,
-                                        overflow: TextOverflow.ellipsis,
-                                      ),
-                                    ),
-                                    const SizedBox(width: 8),
-                                    Chip(
-                                      label: Text(
-                                        item.status,
-                                        style: TextStyle(color: onStatusColor),
-                                      ),
-                                      avatar: Icon(
-                                        statusIcon,
-                                        size: 18,
-                                        color: onStatusColor,
-                                      ),
-                                      backgroundColor: statusColor,
-                                      side: BorderSide.none,
-                                    ),
-                                  ],
-                                ),
-                                const SizedBox(height: 4),
-                                Row(
-                                  children: [
-                                    const Icon(Icons.place_outlined, size: 16),
-                                    const SizedBox(width: 4),
-                                    Expanded(child: Text(item.location)),
-                                  ],
-                                ),
-                                const SizedBox(height: 8),
-                                Text(item.description),
-                              ],
-                            ),
-                          ),
-                        );
-                      }),
-                  ],
-                ),
+        return Scaffold(
+          appBar: AppBar(
+            title: const Text('Achados e Perdidos'),
+            centerTitle: true,
+            actions: [
+              IconButton(
+                tooltip: 'Atualizar',
+                icon: const Icon(Icons.refresh),
+                onPressed: store.load,
               ),
-              if (isLoading && items.isEmpty)
-                const Center(child: CircularProgressIndicator()),
-              if (isLoading && items.isNotEmpty)
-                const Positioned(
-                  top: 0,
-                  left: 0,
-                  right: 0,
-                  child: LinearProgressIndicator(),
+            ],
+          ),
+          body: Center(
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 600),
+              child: Stack(
+                children: [
+                  RefreshIndicator(
+                    onRefresh: store.load,
+                    child: ListView(
+                      physics: const AlwaysScrollableScrollPhysics(),
+                      padding: const EdgeInsets.only(bottom: 88),
+                      children: [
+                        if (store.errorMessage != null && items.isEmpty)
+                          _ErrorState(
+                            message: store.errorMessage!,
+                            onRetry: store.load,
+                          )
+                        else if (items.isEmpty && !store.isLoading)
+                          const _EmptyState()
+                        else ...[
+                          if (store.errorMessage != null)
+                            _ErrorBanner(
+                              message: store.errorMessage!,
+                              onRetry: store.load,
+                            ),
+                          ...items.map(
+                            (item) => _ItemCard(
+                              item: item,
+                              onEdit: store.isSaving || store.isDeleting
+                                  ? null
+                                  : () => _openForm(item),
+                              onDelete: store.isSaving || store.isDeleting
+                                  ? null
+                                  : () => _confirmDelete(item),
+                            ),
+                          ),
+                        ],
+                      ],
+                    ),
+                  ),
+                  if (store.isLoading && items.isEmpty)
+                    const Center(child: CircularProgressIndicator()),
+                  if ((store.isLoading || store.isDeleting) && items.isNotEmpty)
+                    const Positioned(
+                      top: 0,
+                      left: 0,
+                      right: 0,
+                      child: LinearProgressIndicator(),
+                    ),
+                ],
+              ),
+            ),
+          ),
+          floatingActionButton: FloatingActionButton(
+            tooltip: 'Novo objeto',
+            onPressed: () => _openForm(),
+            child: const Icon(Icons.add),
+          ),
+        );
+      },
+    );
+  }
+}
+
+class _ItemCard extends StatelessWidget {
+  const _ItemCard({required this.item, this.onEdit, this.onDelete});
+
+  final ItemModel item;
+  final VoidCallback? onEdit;
+  final VoidCallback? onDelete;
+
+  @override
+  Widget build(BuildContext context) {
+    final isLost = item.isLost;
+    final statusColor = isLost
+        ? Theme.of(context).colorScheme.errorContainer
+        : Theme.of(context).colorScheme.tertiaryContainer;
+    final onStatusColor = isLost
+        ? Theme.of(context).colorScheme.onErrorContainer
+        : Theme.of(context).colorScheme.onTertiaryContainer;
+    final statusIcon = isLost ? Icons.search_off : Icons.check_circle_outline;
+
+    return Card(
+      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      child: Padding(
+        padding: const EdgeInsets.all(12),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    item.name,
+                    style: Theme.of(context).textTheme.titleMedium,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                  ),
                 ),
+                const SizedBox(width: 8),
+                Chip(
+                  label: Text(
+                    item.status,
+                    style: TextStyle(color: onStatusColor),
+                  ),
+                  avatar: Icon(statusIcon, size: 18, color: onStatusColor),
+                  backgroundColor: statusColor,
+                  side: BorderSide.none,
+                ),
+              ],
+            ),
+            const SizedBox(height: 4),
+            Row(
+              children: [
+                const Icon(Icons.place_outlined, size: 16),
+                const SizedBox(width: 4),
+                Expanded(child: Text(item.location)),
+              ],
+            ),
+            const SizedBox(height: 8),
+            Text(item.description),
+            const SizedBox(height: 8),
+            Row(
+              children: [
+                Icon(
+                  Icons.schedule,
+                  size: 16,
+                  color: Theme.of(context).colorScheme.outline,
+                ),
+                const SizedBox(width: 4),
+                Text(
+                  _formatDate(item.createdAt),
+                  style: Theme.of(context).textTheme.bodySmall
+                      ?.copyWith(color: Theme.of(context).colorScheme.outline),
+                ),
+              ],
+            ),
+            const SizedBox(height: 8),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.end,
+              children: [
+                IconButton(
+                  icon: const Icon(Icons.edit),
+                  tooltip: 'Editar',
+                  onPressed: onEdit,
+                ),
+                IconButton(
+                  icon: const Icon(Icons.delete),
+                  tooltip: 'Excluir',
+                  color: Theme.of(context).colorScheme.error,
+                  onPressed: onDelete,
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  String _formatDate(DateTime date) {
+    final local = date.toLocal();
+    String two(int value) => value.toString().padLeft(2, '0');
+    return '${two(local.day)}/${two(local.month)}/${local.year} '
+        'às ${two(local.hour)}:${two(local.minute)}';
+  }
+}
+
+class _ErrorState extends StatelessWidget {
+  const _ErrorState({required this.message, required this.onRetry});
+
+  final String message;
+  final Future<void> Function() onRetry;
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      height: MediaQuery.of(context).size.height * 0.6,
+      child: Center(
+        child: Padding(
+          padding: const EdgeInsets.all(24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(
+                Icons.error_outline,
+                size: 64,
+                color: Theme.of(context).colorScheme.error,
+              ),
+              const SizedBox(height: 16),
+              Text(message, textAlign: TextAlign.center),
+              const SizedBox(height: 16),
+              FilledButton(
+                onPressed: () => onRetry(),
+                child: const Text('Tentar novamente'),
+              ),
             ],
           ),
         ),
       ),
-      floatingActionButton: FloatingActionButton(
-        tooltip: 'Novo objeto',
-        onPressed: () async {
-          await Navigator.push(
-            context,
-            MaterialPageRoute(builder: (context) => const FormScreen()),
-          );
-          if (mounted) loadItems();
-        },
-        child: const Icon(Icons.add),
+    );
+  }
+}
+
+class _ErrorBanner extends StatelessWidget {
+  const _ErrorBanner({required this.message, required this.onRetry});
+
+  final String message;
+  final Future<void> Function() onRetry;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
+
+    return Card(
+      color: colors.errorContainer,
+      margin: const EdgeInsets.fromLTRB(16, 8, 16, 0),
+      child: ListTile(
+        leading: Icon(Icons.error_outline, color: colors.onErrorContainer),
+        title: Text(message, style: TextStyle(color: colors.onErrorContainer)),
+        trailing: IconButton(
+          tooltip: 'Tentar novamente',
+          icon: Icon(Icons.refresh, color: colors.onErrorContainer),
+          onPressed: () => onRetry(),
+        ),
+      ),
+    );
+  }
+}
+
+class _EmptyState extends StatelessWidget {
+  const _EmptyState();
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      height: MediaQuery.of(context).size.height * 0.6,
+      child: Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(
+              Icons.inbox,
+              size: 64,
+              color: Theme.of(context).colorScheme.outline,
+            ),
+            const SizedBox(height: 16),
+            const Text('Nenhum objeto cadastrado ainda'),
+          ],
+        ),
       ),
     );
   }

@@ -1,0 +1,39 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function isValidItem(data) {
+      return data.keys().hasOnly(
+          ['name', 'description', 'location', 'status', 'createdAt']
+        ) &&
+        data.name is string &&
+        data.name.size() > 0 &&
+        data.name.size() <= 60 &&
+        data.description is string &&
+        data.description.size() > 0 &&
+        data.description.size() <= 200 &&
+        data.location is string &&
+        data.location.size() > 0 &&
+        data.status is string &&
+        data.status in ['Perdido', 'Encontrado'] &&
+        data.createdAt is timestamp;
+    }
+
+    match /items/{itemId} {
+      // Qualquer pessoa pode consultar os registros.
+      allow read: if true;
+
+      // Sem autenticação, permite criar registros com os campos válidos.
+      allow create: if isValidItem(request.resource.data);
+
+      // A edição mantém a data de criação original.
+      allow update: if
+        isValidItem(request.resource.data) &&
+        request.resource.data.createdAt == resource.data.createdAt;
+
+      // A exclusão também é aberta, pois o trabalho não usa autenticação.
+      // Em produção, restrinja update/delete a usuários autenticados.
+      allow delete: if true;
+    }
+  }
+}

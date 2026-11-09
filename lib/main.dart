@@ -1,14 +1,26 @@
+import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 
+import 'firebase_options.dart';
 import 'screens/list_screen.dart';
+import 'services/firestore_item_service.dart';
+import 'state/item_store.dart';
 
-void main() {
-  runApp(const MyApp());
+Future<void> main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+
+  await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
+
+  final store = ItemStore(FirestoreItemService());
+
+  runApp(MyApp(store: store));
 }
 
 class MyApp extends StatelessWidget {
-  const MyApp({super.key});
+  const MyApp({super.key, required this.store});
+
+  final ItemStore store;
 
   @override
   Widget build(BuildContext context) {
@@ -26,7 +38,7 @@ class MyApp extends StatelessWidget {
       ],
       supportedLocales: const [Locale('pt', 'BR')],
       locale: const Locale('pt', 'BR'),
-      home: const ListScreen(),
+      home: ListScreen(store: store),
     );
   }
 }
